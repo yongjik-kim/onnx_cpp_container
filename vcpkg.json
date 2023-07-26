@@ -1,0 +1,12 @@
+{
+	"name": "onnx_cpp_container",
+	"version-string": "0.1",
+	"dependencies": [
+		"gflags",
+		"onnxruntime-gpu",
+		{
+			"name": "opencv4",
+			"features": ["ffmpeg", "png"]
+		}
+	]
+}

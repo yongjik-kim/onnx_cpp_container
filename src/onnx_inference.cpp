@@ -8,7 +8,6 @@ MIT License
 #include "onnx_inference.h"
 
 #include <cuda_runtime.h>
-// #include <gflags/gflags.h>
 #include <onnxruntime_cxx_api.h>
 #include <opencv2/opencv.hpp>
 
@@ -17,10 +16,6 @@ MIT License
 #include <stdexcept>
 #include <string>
 #include <vector>
-
-// DEFINE_string(provider, "CPU", "Execution provider: CPU, CUDA, or TensorRT");
-// DEFINE_string(model_file, "yolo.onnx", "Directory to ONNX Model file");
-// DEFINE_int(device, 0, "Device number to run inference on");
 
 template <typename T>
 T vectorProduct(const std::vector<T>& v)
@@ -76,21 +71,17 @@ OnnxContainer::~OnnxContainer()
 
 void OnnxContainer::SetUpEp(std::string execution_provider)
 {
-  if (execution_provider == "CPU" || execution_provider == "cpu" ||
-      execution_provider == "Cpu")
+  if (execution_provider == "CPU")
   {
     execution_provider_ = ExecutionProviders::CPU;
     SetUpCpu();
   }
-  else if (execution_provider == "CUDA" || execution_provider == "Cuda" ||
-           execution_provider == "cuda")
+  else if (execution_provider == "CUDA")
   {
     execution_provider_ = ExecutionProviders::CUDA;
     SetUpCuda();
   }
-  else if (execution_provider == "TensorRT" || execution_provider == "trt" ||
-           execution_provider == "Tensorrt" ||
-           execution_provider == "tensorrt" || execution_provider == "TRT")
+  else if (execution_provider == "TensorRT")
   {
     execution_provider_ = ExecutionProviders::TENSORRT;
     SetUpTensorrt();
@@ -172,36 +163,3 @@ void OnnxContainer::SetUpGpuIoBindings()
 };
 
 void OnnxContainer::Run() { session_.Run(run_options_, binding_); }
-
-int main(int argc, char* argv[])
-{
-  /*
-  // Initializing meta variables
-  int64_t const input_c(3), input_h(224), input_w(224);
-  int64_t const output_l(1000);
-  std::vector<int64_t> input_shape{input_c, input_h, input_w};
-  std::vector<int64_t> output_shape{output_l};
-  float *input_arr, *output_arr;
-  input_arr = new float[input_c * input_h * input_w];
-  output_arr = new float[output_l];
-  memset(input_arr, 0., input_c * input_h * input_w * sizeof(float));
-  memset(output_arr, 0., output_l);
-
-
-  // Parsing model, input file
-
-  ORTCHAR_T* model_name = L"resnet50-v2-7.onnx";
-  std::string image_path = "example.jpg";
-
-  cv:Mat image = cv::imread(image_path, cv::IMREAD_COLOR);
-  
-  OnnxContainer engine(
-      model_name, "CUDA", input_shape, output_shape, input_arr, output_arr);
-  engine.Run();
-
-  delete[] input_arr;
-  delete[] output_arr;
-
-  return 0;
-  */
-};
