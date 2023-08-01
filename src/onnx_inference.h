@@ -25,7 +25,8 @@ class OnnxContainer
       float* input_arr, float* output_arr);
   ~OnnxContainer();
   void Run();
-
+  void OnnxContainer::Run(
+      const char* const* input_names, const char* const* output_names);
  private:
   void SetUpCpu();
   void SetUpCuda();

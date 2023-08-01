@@ -9,10 +9,11 @@ MIT License
 
 #include <cuda_runtime.h>
 #include <onnxruntime_cxx_api.h>
-#include <opencv2/opencv.hpp>
 
 #include <algorithm>
+#include <functional>
 #include <iostream>
+#include <numeric>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -30,7 +31,7 @@ T vectorProduct(const std::vector<T>& v)
 OnnxContainer::OnnxContainer(ORTCHAR_T* model_path,
     std::string execution_provider, std::vector<int64_t> input_shape,
     std::vector<int64_t> output_shape, float* input_arr, float* output_arr)
-    : env_(nullptr),
+    : env_(ORT_LOGGING_LEVEL_WARNING, "test"),
       session_options_(),
       session_(nullptr),
       input_tensor_(nullptr),
@@ -42,15 +43,55 @@ OnnxContainer::OnnxContainer(ORTCHAR_T* model_path,
       output_size_(1),
       input_arr_(nullptr),
       output_arr_(nullptr),
-      run_options_(nullptr),
+      run_options_(),
       binding_(nullptr)
 {
+  session_options_ = Ort::SessionOptions();
   session_options_.SetIntraOpNumThreads(1);
   session_options_.SetGraphOptimizationLevel(
-      GraphOptimizationLevel::ORT_ENABLE_ALL);  // Change to ORT_ENABLE_BASIC if
-                                                // gone wrong
+      GraphOptimizationLevel::ORT_ENABLE_BASIC);  // Change to ORT_ENABLE_BASIC
+                                                  // if gone wrong
 
-  env_ = Ort::Env(ORT_LOGGING_LEVEL_WARNING, "test");
+  /*
+  // Temporary setup to parse input / output
+  Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "ONNXParsingApp");
+  Ort::SessionOptions temp_options;
+  Ort::Session session(env, model_path, temp_options);
+  Ort::AllocatorWithDefaultOptions temp_allocator;  // Create an allocator
+  const Ort::TypeInfo input_type_info =
+      session.GetInputTypeInfo(0);  // Get the input type info
+  const Ort::TypeInfo output_type_info =
+      session.GetOutputTypeInfo(0);  // Get the output type info
+
+  Ort::TensorTypeAndShapeInfo input_tensor_info =
+      input_type_info.GetTensorTypeAndShapeInfo();  // Get tensor info for input
+  Ort::TensorTypeAndShapeInfo output_tensor_info =
+      output_type_info
+          .GetTensorTypeAndShapeInfo();  // Get tensor info for output
+
+  size_t num_input_dims =
+      input_tensor_info
+          .GetDimensionsCount();  // Get the number of dimensions for the input
+  size_t num_output_dims =
+      output_tensor_info
+          .GetDimensionsCount();  // Get the number of dimensions for the output
+
+  std::cout << "Input size: ";
+  for (size_t i = 0; i < num_input_dims; ++i)
+  {
+    std::cout << input_tensor_info.GetShape()[i] << " ";
+  }
+  std::cout << std::endl;
+
+  std::cout << "Output size: ";
+  for (size_t i = 0; i < num_output_dims; ++i)
+  {
+    std::cout << output_tensor_info.GetShape()[i] << " ";
+  }
+  std::cout << std::endl;
+
+  return 0;
+  */
 
   input_shape_ = input_shape;    // If image, in NCHW format
   output_shape_ = output_shape;  // in NCHW format
@@ -65,8 +106,11 @@ OnnxContainer::OnnxContainer(ORTCHAR_T* model_path,
 
 OnnxContainer::~OnnxContainer()
 {
-  binding_.ClearBoundInputs();
-  binding_.ClearBoundOutputs();
+  if (binding_)
+  {
+    binding_.ClearBoundInputs();
+    binding_.ClearBoundOutputs();
+  }
 };
 
 void OnnxContainer::SetUpEp(std::string execution_provider)
@@ -95,13 +139,13 @@ void OnnxContainer::SetUpEp(std::string execution_provider)
 void OnnxContainer::SetUpCpu()
 {
   auto memory_info =
-      Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeCPU);
+      Ort::MemoryInfo::CreateCpu(OrtArenaAllocator, OrtMemTypeCPU);
   input_tensor_ = Ort::Value::CreateTensor<float>(memory_info, input_arr_,
-      input_shape_.size(), input_shape_.data(), input_shape_.size());
+      input_size_, input_shape_.data(), input_shape_.size());
   output_tensor_ = Ort::Value::CreateTensor<float>(memory_info, output_arr_,
       output_size_, output_shape_.data(), output_shape_.size());
 
-  Ort::Session session(env_, model_path_, session_options_);
+  session_ = Ort::Session(env_, model_path_, session_options_);
 };
 
 void OnnxContainer::SetUpCuda()
@@ -162,4 +206,16 @@ void OnnxContainer::SetUpGpuIoBindings()
   session_.Run(Ort::RunOptions(), binding_);
 };
 
-void OnnxContainer::Run() { session_.Run(run_options_, binding_); }
+void OnnxContainer::Run()
+{
+  if (binding_)
+    session_.Run(run_options_, binding_);
+}
+
+void OnnxContainer::Run(
+    const char* const* input_names, const char* const* output_names)
+{
+  Ort::RunOptions run_options;
+  session_.Run(run_options, input_names, &input_tensor_, 1, output_names,
+      &output_tensor_, 1);
+}
