@@ -172,12 +172,12 @@ int main(int argc, char* argv[])
   int num_classes(1000);
 
   float* input_arr = reinterpret_cast<float*>(chw_image.data);
-
-  OnnxContainer engine(
-      model_name, FLAGS_provider.c_str(), input_shape, output_shape, input_arr, output_arr);
-
+  
   const char* input_names[] = {"data"};
   const char* output_names[] = {"resnetv27_dense0_fwd"};
+
+  OnnxContainer engine(
+      model_name, input_names[0], output_names[0], FLAGS_provider.c_str(), input_shape, output_shape, input_arr, output_arr);
 
   if (FLAGS_provider == "CPU")
     engine.Run(input_names, output_names);

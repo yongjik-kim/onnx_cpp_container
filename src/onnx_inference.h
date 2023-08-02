@@ -20,13 +20,15 @@ enum class ExecutionProviders
 class OnnxContainer
 {
  public:
-  OnnxContainer(ORTCHAR_T* model_path, std::string execution_provider,
+  OnnxContainer(ORTCHAR_T* model_path, const char* input_node,
+      const char* output_node, std::string execution_provider,
       std::vector<int64_t> input_shape, std::vector<int64_t> output_shape,
       float* input_arr, float* output_arr);
   ~OnnxContainer();
   void Run();
   void OnnxContainer::Run(
       const char* const* input_names, const char* const* output_names);
+
  private:
   void SetUpCpu();
   void SetUpCuda();
@@ -51,6 +53,8 @@ class OnnxContainer
 
   size_t input_size_, output_size_;
   float *input_arr_, *output_arr_;
+
+  const char *input_node_, *output_node_;
 
   ORTCHAR_T* model_path_;
 };

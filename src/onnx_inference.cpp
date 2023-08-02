@@ -28,9 +28,10 @@ T vectorProduct(const std::vector<T>& v)
 // the model structure in detail! For example, use Netron:
 // https://github.com/lutzroeder/netron
 
-OnnxContainer::OnnxContainer(ORTCHAR_T* model_path,
-    std::string execution_provider, std::vector<int64_t> input_shape,
-    std::vector<int64_t> output_shape, float* input_arr, float* output_arr)
+OnnxContainer::OnnxContainer(ORTCHAR_T* model_path, const char* input_node,
+    const char* output_node, std::string execution_provider,
+    std::vector<int64_t> input_shape, std::vector<int64_t> output_shape,
+    float* input_arr, float* output_arr)
     : env_(ORT_LOGGING_LEVEL_WARNING, "test"),
       session_options_(),
       session_(nullptr),
@@ -43,6 +44,8 @@ OnnxContainer::OnnxContainer(ORTCHAR_T* model_path,
       output_size_(1),
       input_arr_(nullptr),
       output_arr_(nullptr),
+      input_node_(input_node),
+      output_node_(output_node),
       run_options_(),
       binding_(nullptr),
       output_device_data_(nullptr)
@@ -213,8 +216,8 @@ void OnnxContainer::SetUpGpuIoBindings()
   output_device_data_ = reinterpret_cast<float*>(output_data_.get());
 
   binding_ = Ort::IoBinding(session_);
-  binding_.BindInput("data", input_tensor_);
-  binding_.BindOutput("resnetv27_dense0_fwd", output_tensor_);
+  binding_.BindInput(input_node_, input_tensor_);
+  binding_.BindOutput(output_node_, output_tensor_);
 
   // One regular run for necessary memory allocation and graph capturing
   session_.Run(run_options_, binding_);
