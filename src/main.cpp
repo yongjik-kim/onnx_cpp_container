@@ -11,7 +11,7 @@
 
 #include "onnx_inference.h"
 
-DEFINE_string(provider, "CPU", "Execution provider: CPU, CUDA, or TensorRT");
+DEFINE_string(provider, "CUDA", "Execution provider: CPU, CUDA, or TensorRT");
 DEFINE_string(image_file, "dog.jpg", "Image file to run inference on");
 // DEFINE_string(model_file, "yolo.onnx", "Directory to ONNX Model file");
 DEFINE_uint32(device, 0, "Device number to run inference on");
@@ -174,12 +174,15 @@ int main(int argc, char* argv[])
   float* input_arr = reinterpret_cast<float*>(chw_image.data);
 
   OnnxContainer engine(
-      model_name, "CPU", input_shape, output_shape, input_arr, output_arr);
+      model_name, FLAGS_provider.c_str(), input_shape, output_shape, input_arr, output_arr);
 
   const char* input_names[] = {"data"};
   const char* output_names[] = {"resnetv27_dense0_fwd"};
 
-  engine.Run(input_names, output_names);
+  if (FLAGS_provider == "CPU")
+    engine.Run(input_names, output_names);
+  else
+    engine.Run();
 
   SoftmaxArray(output_arr, num_classes);
 

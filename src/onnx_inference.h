@@ -33,6 +33,7 @@ class OnnxContainer
   void SetUpTensorrt();
   void SetUpGpuIoBindings();
   void SetUpEp(std::string execution_provider);
+  void PullOutput();
 
   Ort::Env env_;
   Ort::SessionOptions session_options_;
@@ -43,6 +44,8 @@ class OnnxContainer
 
   Ort::Value input_tensor_{nullptr}, output_tensor_{nullptr};
   std::vector<int64_t> input_shape_, output_shape_;
+
+  float* output_device_data_;
 
   ExecutionProviders execution_provider_;
 

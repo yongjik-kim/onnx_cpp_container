@@ -44,7 +44,8 @@ OnnxContainer::OnnxContainer(ORTCHAR_T* model_path,
       input_arr_(nullptr),
       output_arr_(nullptr),
       run_options_(),
-      binding_(nullptr)
+      binding_(nullptr),
+      output_device_data_(nullptr)
 {
   session_options_ = Ort::SessionOptions();
   session_options_.SetIntraOpNumThreads(1);
@@ -156,6 +157,10 @@ void OnnxContainer::SetUpCuda()
   std::unique_ptr<OrtCUDAProviderOptionsV2,
       decltype(api.ReleaseCUDAProviderOptions)>
       rel_cuda_options(cuda_options, api.ReleaseCUDAProviderOptions);
+  std::vector<const char*> keys{"enable_cuda_graph"};
+  std::vector<const char*> values{"1"};
+  api.UpdateCUDAProviderOptions(
+      rel_cuda_options.get(), keys.data(), values.data(), 1);
   Ort::ThrowOnError(api.SessionOptionsAppendExecutionProvider_CUDA_V2(
       static_cast<OrtSessionOptions*>(session_options_),
       rel_cuda_options.get()));
@@ -171,6 +176,10 @@ void OnnxContainer::SetUpTensorrt()
   std::unique_ptr<OrtTensorRTProviderOptionsV2,
       decltype(api.ReleaseTensorRTProviderOptions)>
       rel_trt_options(trt_options, api.ReleaseTensorRTProviderOptions);
+  std::vector<const char*> keys{"trt_cuda_graph_enable"};
+  std::vector<const char*> values{"1"};
+  api.UpdateTensorRTProviderOptions(
+      rel_trt_options.get(), keys.data(), values.data(), keys.size());
   Ort::ThrowOnError(api.SessionOptionsAppendExecutionProvider_TensorRT_V2(
       static_cast<OrtSessionOptions*>(session_options_),
       rel_trt_options.get()));
@@ -184,32 +193,43 @@ void OnnxContainer::SetUpGpuIoBindings()
   // want to change the provider.
   session_ = Ort::Session(env_, model_path_, session_options_);
   Ort::MemoryInfo info_cuda(
-      "cuda", OrtAllocatorType::OrtArenaAllocator, 0, OrtMemTypeDefault);
+      "Cuda", OrtAllocatorType::OrtArenaAllocator, 0, OrtMemTypeDefault);
   Ort::Allocator cuda_allocator(session_, info_cuda);
 
-  auto input_data = cuda_allocator.GetAllocation(input_size_ * sizeof(float));
-  auto output_data = cuda_allocator.GetAllocation(output_size_ * sizeof(float));
-  cudaMemcpy(input_data.get(), input_arr_, sizeof(float) * input_size_,
+  auto input_data_ = cuda_allocator.GetAllocation(input_size_ * sizeof(float));
+  auto output_data_ =
+      cuda_allocator.GetAllocation(output_size_ * sizeof(float));
+  cudaMemcpy(input_data_.get(), input_arr_, sizeof(float) * input_size_,
       cudaMemcpyHostToDevice);
-  cudaMemcpy(output_data.get(), output_arr_, sizeof(float) * output_size_,
+  cudaMemcpy(output_data_.get(), output_arr_, sizeof(float) * output_size_,
       cudaMemcpyHostToDevice);
-  input_tensor_ = Ort::Value::CreateTensor(info_cuda, input_arr_, input_size_,
+  input_tensor_ = Ort::Value::CreateTensor(info_cuda,
+      reinterpret_cast<float*>(input_data_.get()), input_size_,
       input_shape_.data(), input_shape_.size());
-  output_tensor_ = Ort::Value::CreateTensor(info_cuda, output_arr_,
-      output_size_, output_shape_.data(), input_shape_.size());
+  output_tensor_ = Ort::Value::CreateTensor(info_cuda,
+      reinterpret_cast<float*>(output_data_.get()), output_size_,
+      output_shape_.data(), output_shape_.size());
+
+  output_device_data_ = reinterpret_cast<float*>(output_data_.get());
 
   binding_ = Ort::IoBinding(session_);
-  binding_.BindInput("input", input_tensor_);
-  binding_.BindOutput("output", output_tensor_);
+  binding_.BindInput("data", input_tensor_);
+  binding_.BindOutput("resnetv27_dense0_fwd", output_tensor_);
 
   // One regular run for necessary memory allocation and graph capturing
-  session_.Run(Ort::RunOptions(), binding_);
+  session_.Run(run_options_, binding_);
+
+  // Initialize output data
+  cudaMemset(output_data_.get(), 0., sizeof(float) * output_size_);
 };
 
 void OnnxContainer::Run()
 {
   if (binding_)
+  {
     session_.Run(run_options_, binding_);
+    PullOutput();
+  }
 }
 
 void OnnxContainer::Run(
@@ -218,4 +238,10 @@ void OnnxContainer::Run(
   Ort::RunOptions run_options;
   session_.Run(run_options, input_names, &input_tensor_, 1, output_names,
       &output_tensor_, 1);
+}
+
+void OnnxContainer::PullOutput()
+{
+  cudaMemcpy(output_arr_, output_device_data_, sizeof(float) * output_size_,
+      cudaMemcpyDefault);
 }
