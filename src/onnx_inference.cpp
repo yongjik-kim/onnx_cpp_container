@@ -214,6 +214,7 @@ void OnnxContainer::SetUpGpuIoBindings()
       output_shape_.data(), output_shape_.size());
 
   output_device_data_ = reinterpret_cast<float*>(output_data_.get());
+  input_device_data_ = reinterpret_cast<float*>(input_data_.get());
 
   binding_ = Ort::IoBinding(session_);
   binding_.BindInput(input_node_, input_tensor_);
@@ -243,8 +244,25 @@ void OnnxContainer::Run(
       &output_tensor_, 1);
 }
 
+void OnnxContainer::PushInput(float* input_arr, size_t input_size)
+{
+  if (input_size_!=input_size_)
+  {
+    throw std::runtime_error("Input size is not equal to initialized size.");
+  }
+  if (binding_ == nullptr)
+  {
+    throw std::runtime_error("Undefined behavior: Can't push when IObinding is not configured.");
+  }
+  cudaMemcpy(input_device_data_, input_arr, sizeof(float) * input_size, cudaMemcpyDefault);
+};
+
 void OnnxContainer::PullOutput()
 {
+  if (binding_ == nullptr)
+  {
+    throw std::runtime_error("Can't pull output when IObinding is not configured. Exiting...");
+  }
   cudaMemcpy(output_arr_, output_device_data_, sizeof(float) * output_size_,
       cudaMemcpyDefault);
 }
