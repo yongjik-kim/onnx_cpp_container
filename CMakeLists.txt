@@ -39,15 +39,18 @@ find_package(OpenCV REQUIRED)
 find_package(gflags REQUIRED)
 find_package(CUDA REQUIRED)
 
-add_library(lib_onnx_example ./src/onnx_inference.cpp ./src/onnx_inference.h)
-add_executable(onnx_example ./src/main.cpp)
+add_library(lib_onnx ./src/onnx_inference.cpp ./src/onnx_inference.h)
+add_executable(resnet_example ./src/resnet_ex.cpp)
+add_executable(pp_yolo_e_example ./src/pp_yolo_e_ex.cpp)
 
-target_include_directories(onnx_example PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} ${OpenCV_INCLUDE_DIRS} ${ONNXRUNTIME_INCLUDE_DIRS})
-target_include_directories(lib_onnx_example PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} ${OpenCV_INCLUDE_DIRS} ${ONNXRUNTIME_INCLUDE_DIRS})
+target_include_directories(resnet_example PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} ${OpenCV_INCLUDE_DIRS} ${ONNXRUNTIME_INCLUDE_DIRS})
+target_include_directories(pp_yolo_e_example PRIVATE ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} ${OpenCV_INCLUDE_DIRS} ${ONNXRUNTIME_INCLUDE_DIRS})
+target_include_directories(lib_onnx PUBLIC ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES} ${OpenCV_INCLUDE_DIRS} ${ONNXRUNTIME_INCLUDE_DIRS})
 
-target_link_directories(lib_onnx_example PUBLIC "${ONNXRUNTIME_ROOTDIR}/lib")
-target_link_libraries(lib_onnx_example PUBLIC CUDA cudart onnxruntime)
-target_link_libraries(onnx_example PRIVATE lib_onnx_example gflags ${OpenCV_LIBS} CUDA cudart onnxruntime)
+target_link_directories(lib_onnx PUBLIC "${ONNXRUNTIME_ROOTDIR}/lib")
+target_link_libraries(lib_onnx PUBLIC CUDA cudart onnxruntime)
+target_link_libraries(resnet_example PRIVATE lib_onnx gflags ${OpenCV_LIBS} CUDA cudart onnxruntime)
+target_link_libraries(pp_yolo_e_example PRIVATE lib_onnx gflags ${OpenCV_LIBS} CUDA cudart onnxruntime)
 
 add_definitions(-DUSE_CUDA -DUSE_TENSORRT)
 
@@ -67,4 +70,5 @@ function(copy_ort_dlls target_name)
   endif()
 endfunction()
 
-copy_ort_dlls(onnx_example)
+copy_ort_dlls(resnet_example)
+copy_ort_dlls(pp_yolo_e_example)
