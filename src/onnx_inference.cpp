@@ -40,8 +40,6 @@ OnnxContainer::OnnxContainer(ORTCHAR_T* model_path, const char* input_node,
       input_shape_(input_shape),    // If image, in NCHW format
       output_shape_(output_shape),  // in NCHW format
       execution_provider_(ExecutionProviders::CPU),
-      input_size_(1),
-      output_size_(1),
       input_arr_(input_arr),
       output_arr_(output_arr),
       input_node_(input_node),
@@ -198,7 +196,7 @@ void OnnxContainer::Run(
     const char* const* input_names, const char* const* output_names)
 {
   Ort::RunOptions run_options;
-  session_.Run(run_options, input_names, &input_tensor_, input_node_names.size(), output_names,
+  session_.Run(run_options, input_names, &input_tensor_, 1, output_names,
       &output_tensor_, 1);
 }
 
