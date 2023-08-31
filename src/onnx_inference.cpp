@@ -62,37 +62,6 @@ OnnxContainer::OnnxContainer(ORTCHAR_T* model_path, const char* input_node,
   SetUpEp(execution_provider);
 };
 
-OnnxContainer::OnnxContainer(ORTCHAR_T* model_path, const char* input_node,
-    const char* output_node, std::string execution_provider,
-    float* input_arr, float* output_arr)
-    : env_(ORT_LOGGING_LEVEL_WARNING, "test"),
-      session_options_(),
-      session_(nullptr),
-      input_tensor_(nullptr), 
-      output_tensor_(nullptr),
-      input_shape_(input_shape),    // If image, in NCHW format
-      output_shape_(output_shape),  // in NCHW format
-      execution_provider_(ExecutionProviders::CPU),
-      input_size_(1),
-      output_size_(1),
-      input_arr_(input_arr),
-      output_arr_(output_arr),
-      input_node_(input_node),
-      output_node_(output_node),
-      run_options_(),
-      binding_(nullptr),
-      output_device_data_(nullptr),
-      model_path_(model_path)
-{
-  session_options_ = Ort::SessionOptions();
-  session_options_.SetIntraOpNumThreads(1);
-  session_options_.SetGraphOptimizationLevel(
-      GraphOptimizationLevel::ORT_ENABLE_BASIC);  // Change to ORT_ENABLE_BASIC
-                                                  // if gone wrong
-
-  SetUpEp(execution_provider);
-};
-
 OnnxContainer::~OnnxContainer()
 {
   if (binding_)
