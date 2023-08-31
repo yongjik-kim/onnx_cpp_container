@@ -35,20 +35,23 @@ OnnxContainer::OnnxContainer(ORTCHAR_T* model_path, const char* input_node,
     : env_(ORT_LOGGING_LEVEL_WARNING, "test"),
       session_options_(),
       session_(nullptr),
-      input_tensor_(nullptr),
+      input_tensor_(nullptr), 
       output_tensor_(nullptr),
-      input_shape_({}),
-      output_shape_({}),
+      input_shape_(input_shape),    // If image, in NCHW format
+      output_shape_(output_shape),  // in NCHW format
       execution_provider_(ExecutionProviders::CPU),
       input_size_(1),
       output_size_(1),
-      input_arr_(nullptr),
-      output_arr_(nullptr),
+      input_arr_(input_arr),
+      output_arr_(output_arr),
       input_node_(input_node),
       output_node_(output_node),
       run_options_(),
       binding_(nullptr),
-      output_device_data_(nullptr)
+      output_device_data_(nullptr),
+      model_path_(model_path),
+      input_size_(vectorProduct(input_shape)),
+      output_size_(vectorProduct(output_shape))
 {
   session_options_ = Ort::SessionOptions();
   session_options_.SetIntraOpNumThreads(1);
@@ -56,54 +59,36 @@ OnnxContainer::OnnxContainer(ORTCHAR_T* model_path, const char* input_node,
       GraphOptimizationLevel::ORT_ENABLE_BASIC);  // Change to ORT_ENABLE_BASIC
                                                   // if gone wrong
 
-  /*
-  // Temporary setup to parse input / output
-  Ort::Env env(ORT_LOGGING_LEVEL_WARNING, "ONNXParsingApp");
-  Ort::SessionOptions temp_options;
-  Ort::Session session(env, model_path, temp_options);
-  Ort::AllocatorWithDefaultOptions temp_allocator;  // Create an allocator
-  const Ort::TypeInfo input_type_info =
-      session.GetInputTypeInfo(0);  // Get the input type info
-  const Ort::TypeInfo output_type_info =
-      session.GetOutputTypeInfo(0);  // Get the output type info
+  SetUpEp(execution_provider);
+};
 
-  Ort::TensorTypeAndShapeInfo input_tensor_info =
-      input_type_info.GetTensorTypeAndShapeInfo();  // Get tensor info for input
-  Ort::TensorTypeAndShapeInfo output_tensor_info =
-      output_type_info
-          .GetTensorTypeAndShapeInfo();  // Get tensor info for output
-
-  size_t num_input_dims =
-      input_tensor_info
-          .GetDimensionsCount();  // Get the number of dimensions for the input
-  size_t num_output_dims =
-      output_tensor_info
-          .GetDimensionsCount();  // Get the number of dimensions for the output
-
-  std::cout << "Input size: ";
-  for (size_t i = 0; i < num_input_dims; ++i)
-  {
-    std::cout << input_tensor_info.GetShape()[i] << " ";
-  }
-  std::cout << std::endl;
-
-  std::cout << "Output size: ";
-  for (size_t i = 0; i < num_output_dims; ++i)
-  {
-    std::cout << output_tensor_info.GetShape()[i] << " ";
-  }
-  std::cout << std::endl;
-
-  return 0;
-  */
-
-  input_shape_ = input_shape;    // If image, in NCHW format
-  output_shape_ = output_shape;  // in NCHW format
-  input_size_ = vectorProduct(input_shape_);
-  output_size_ = vectorProduct(output_shape_);
-  input_arr_ = input_arr;
-  output_arr_ = output_arr;
-  model_path_ = model_path;
+OnnxContainer::OnnxContainer(ORTCHAR_T* model_path, const char* input_node,
+    const char* output_node, std::string execution_provider,
+    float* input_arr, float* output_arr)
+    : env_(ORT_LOGGING_LEVEL_WARNING, "test"),
+      session_options_(),
+      session_(nullptr),
+      input_tensor_(nullptr), 
+      output_tensor_(nullptr),
+      input_shape_(input_shape),    // If image, in NCHW format
+      output_shape_(output_shape),  // in NCHW format
+      execution_provider_(ExecutionProviders::CPU),
+      input_size_(1),
+      output_size_(1),
+      input_arr_(input_arr),
+      output_arr_(output_arr),
+      input_node_(input_node),
+      output_node_(output_node),
+      run_options_(),
+      binding_(nullptr),
+      output_device_data_(nullptr),
+      model_path_(model_path)
+{
+  session_options_ = Ort::SessionOptions();
+  session_options_.SetIntraOpNumThreads(1);
+  session_options_.SetGraphOptimizationLevel(
+      GraphOptimizationLevel::ORT_ENABLE_BASIC);  // Change to ORT_ENABLE_BASIC
+                                                  // if gone wrong
 
   SetUpEp(execution_provider);
 };
@@ -160,10 +145,12 @@ void OnnxContainer::SetUpCuda()
   std::unique_ptr<OrtCUDAProviderOptionsV2,
       decltype(api.ReleaseCUDAProviderOptions)>
       rel_cuda_options(cuda_options, api.ReleaseCUDAProviderOptions);
+  /*
   std::vector<const char*> keys{"enable_cuda_graph"};
   std::vector<const char*> values{"1"};
   api.UpdateCUDAProviderOptions(
-      rel_cuda_options.get(), keys.data(), values.data(), 1);
+  rel_cuda_options.get(), keys.data(), values.data(), 1);
+  */
   Ort::ThrowOnError(api.SessionOptionsAppendExecutionProvider_CUDA_V2(
       static_cast<OrtSessionOptions*>(session_options_),
       rel_cuda_options.get()));
@@ -179,10 +166,12 @@ void OnnxContainer::SetUpTensorrt()
   std::unique_ptr<OrtTensorRTProviderOptionsV2,
       decltype(api.ReleaseTensorRTProviderOptions)>
       rel_trt_options(trt_options, api.ReleaseTensorRTProviderOptions);
+  /*
   std::vector<const char*> keys{"trt_cuda_graph_enable"};
   std::vector<const char*> values{"1"};
   api.UpdateTensorRTProviderOptions(
       rel_trt_options.get(), keys.data(), values.data(), keys.size());
+  */
   Ort::ThrowOnError(api.SessionOptionsAppendExecutionProvider_TensorRT_V2(
       static_cast<OrtSessionOptions*>(session_options_),
       rel_trt_options.get()));
@@ -240,28 +229,30 @@ void OnnxContainer::Run(
     const char* const* input_names, const char* const* output_names)
 {
   Ort::RunOptions run_options;
-  session_.Run(run_options, input_names, &input_tensor_, 1, output_names,
+  session_.Run(run_options, input_names, &input_tensor_, input_node_names.size(), output_names,
       &output_tensor_, 1);
 }
 
 void OnnxContainer::PushInput(float* input_arr, size_t input_size)
 {
-  if (input_size_!=input_size_)
+  if (input_size_ != input_size_)
   {
-    throw std::runtime_error("Input size is not equal to initialized size.");
+    throw std::runtime_error(
+        "Error: Requested input size is not equal to model input size.");
   }
   if (binding_ == nullptr)
   {
-    throw std::runtime_error("Undefined behavior: Can't push when IObinding is not configured.");
+    throw std::runtime_error("Can't push input: IObinding is not configured.");
   }
-  cudaMemcpy(input_device_data_, input_arr, sizeof(float) * input_size, cudaMemcpyDefault);
+  cudaMemcpy(input_device_data_, input_arr, sizeof(float) * input_size,
+      cudaMemcpyDefault);
 };
 
 void OnnxContainer::PullOutput()
 {
   if (binding_ == nullptr)
   {
-    throw std::runtime_error("Can't pull output when IObinding is not configured. Exiting...");
+    throw std::runtime_error("Can't pull output: IObinding is not configured.");
   }
   cudaMemcpy(output_arr_, output_device_data_, sizeof(float) * output_size_,
       cudaMemcpyDefault);
