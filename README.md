@@ -67,7 +67,7 @@ pp_yolo_e_example.exe --image_file ./super_shy.JPG --obj_thresh 0.4
 
 **Output**
 
-![super_shy_result.jpg](./super_shy_result.jpg "YOLO ressult in Super Shy - NewJeans")
+![super_shy_result.JPG](./super_shy_result.JPG "YOLO ressult in Super Shy - NewJeans")
 
 ## Further readings
 
